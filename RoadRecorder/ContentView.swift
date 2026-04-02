@@ -5,10 +5,16 @@ struct ContentView: View {
     @StateObject private var recorder = RecordingManager()
     @State private var shareURL: URL?
     @State private var showShareSheet = false
+    @State private var showExportError = false
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 46.0, longitude: 11.0),
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
+
+    private var hasError: Bool {
+        recorder.locationManager.lastError != nil ||
+        recorder.altimeterManager.lastError != nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,11 +23,18 @@ struct ContentView: View {
                 Text("ROAD RECORDER")
                     .font(.headline.bold())
                 Spacer()
+
+                // GPS signal indicator
+                if recorder.locationManager.signalLost {
+                    Image(systemName: "location.slash")
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                }
+
                 if recorder.isRecording {
                     Circle()
                         .fill(.red)
                         .frame(width: 10, height: 10)
-                        .opacity(recorder.isRecording ? 1 : 0)
                     Text("REC")
                         .font(.caption.bold())
                         .foregroundColor(.red)
@@ -29,6 +42,15 @@ struct ContentView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
+
+            // Error banner
+            if let error = recorder.locationManager.lastError {
+                ErrorBanner(message: error, color: .red)
+            } else if let error = recorder.altimeterManager.lastError {
+                ErrorBanner(message: error, color: .orange)
+            } else if recorder.locationManager.signalLost && recorder.isRecording {
+                ErrorBanner(message: "Segnale GPS perso — in attesa...", color: .orange)
+            }
 
             // Map
             Map(coordinateRegion: $mapRegion,
@@ -67,6 +89,13 @@ struct ContentView: View {
                     StatBox(title: "Velocità",
                             value: formatSpeed(recorder.locationManager.currentLocation?.speed))
                 }
+                // Diagnostics row
+                if recorder.isRecording || recorder.droppedPoints > 0 || recorder.gpsGapCount > 0 {
+                    HStack {
+                        StatBox(title: "Scartati", value: "\(recorder.droppedPoints)")
+                        StatBox(title: "Gap GPS", value: "\(recorder.gpsGapCount)")
+                    }
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -81,10 +110,11 @@ struct ContentView: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(.green)
+                            .background(hasError ? .gray : .green)
                             .foregroundColor(.white)
                             .cornerRadius(12)
                     }
+                    .disabled(hasError && recorder.locationManager.authorizationStatus == .denied)
                 } else {
                     Button(action: {
                         recorder.stopRecording()
@@ -103,6 +133,8 @@ struct ContentView: View {
                     if let url = recorder.exportCSV() {
                         shareURL = url
                         showShareSheet = true
+                    } else {
+                        showExportError = true
                     }
                 }) {
                     Label("SALVA", systemImage: "square.and.arrow.up")
@@ -115,7 +147,18 @@ struct ContentView: View {
                 }
                 .disabled(recorder.points.isEmpty)
             }
-            .padding()
+            .padding(.horizontal)
+
+            // Log export button
+            Button(action: {
+                shareURL = recorder.exportLog()
+                showShareSheet = true
+            }) {
+                Label("Esporta Log", systemImage: "doc.text")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 8)
         }
         .onAppear {
             recorder.requestPermission()
@@ -124,6 +167,11 @@ struct ContentView: View {
             if let url = shareURL {
                 ShareSheet(items: [url])
             }
+        }
+        .alert("Errore Export", isPresented: $showExportError) {
+            Button("OK") {}
+        } message: {
+            Text(recorder.exportError ?? "Errore sconosciuto")
         }
     }
 
@@ -150,6 +198,27 @@ struct ContentView: View {
         guard let speed, speed >= 0 else { return "—" }
         let kmh = speed * 3.6
         return String(format: "%.0f km/h", kmh)
+    }
+}
+
+// MARK: - Error Banner
+
+struct ErrorBanner: View {
+    let message: String
+    let color: Color
+
+    var body: some View {
+        HStack {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption)
+            Text(message)
+                .font(.caption)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .background(color.opacity(0.9))
     }
 }
 

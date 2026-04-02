@@ -13,6 +13,7 @@
 		AA000004 /* AltimeterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100004; };
 		AA000005 /* RecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100005; };
 		AA000006 /* RecordingPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100006; };
+		AA000007 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100008; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +24,7 @@
 		AA100005 /* RecordingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingManager.swift; sourceTree = "<group>"; };
 		AA100006 /* RecordingPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPoint.swift; sourceTree = "<group>"; };
 		AA100007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA100008 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		AA200001 /* RoadRecorder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RoadRecorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -54,6 +56,7 @@
 				AA100004 /* AltimeterManager.swift */,
 				AA100005 /* RecordingManager.swift */,
 				AA100006 /* RecordingPoint.swift */,
+				AA100008 /* Logger.swift */,
 				AA100007 /* Info.plist */,
 			);
 			path = RoadRecorder;
@@ -125,6 +128,7 @@
 				AA000004 /* AltimeterManager.swift in Sources */,
 				AA000005 /* RecordingManager.swift in Sources */,
 				AA000006 /* RecordingPoint.swift in Sources */,
+				AA000007 /* Logger.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
