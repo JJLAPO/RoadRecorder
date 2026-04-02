@@ -78,7 +78,29 @@ def create_nurbs_curve(points, name="RoadCurve"):
     bpy.context.view_layer.objects.active = curve_obj
     curve_obj.select_set(True)
 
-    return curve_obj
+    return curve_obj, curve_data
+
+
+def create_road_profile(width=3.0, name="RoadProfile"):
+    """Crea un profilo piatto (segmento orizzontale) da usare come Bevel Object."""
+    profile_data = bpy.data.curves.new(name=name, type="CURVE")
+    profile_data.dimensions = "2D"
+
+    spline = profile_data.splines.new("POLY")
+    spline.points.add(1)  # 2 punti totali
+
+    half = width / 2.0
+    spline.points[0].co = (-half, 0, 0, 1)
+    spline.points[1].co = (half, 0, 0, 1)
+
+    profile_obj = bpy.data.objects.new(name, profile_data)
+    bpy.context.collection.objects.link(profile_obj)
+
+    # Nascondilo dalla viewport (serve solo come profilo)
+    profile_obj.hide_viewport = True
+    profile_obj.hide_render = True
+
+    return profile_obj
 
 
 def setup_scene():
@@ -130,7 +152,12 @@ def main():
         print("ERRORE: Nessun punto nel CSV")
         return
 
-    curve = create_nurbs_curve(points)
+    curve, curve_data = create_nurbs_curve(points)
+
+    # Crea profilo piatto e assegnalo come bevel
+    road_width = 3.0  # metri — modifica per la tua strada
+    profile = create_road_profile(width=road_width)
+    curve_data.bevel_object = profile
 
     # Info utili
     xs = [p[0] for p in points]
@@ -138,6 +165,7 @@ def main():
     zs = [p[2] for p in points]
 
     print(f"\nCurva creata: '{curve.name}'")
+    print(f"  Larghezza strada: {road_width} m (modifica road_width nello script)")
     print(f"  Punti: {len(points)}")
     print(f"  Estensione X: {min(xs):.0f} -> {max(xs):.0f} m ({max(xs)-min(xs):.0f} m)")
     print(f"  Estensione Y: {min(ys):.0f} -> {max(ys):.0f} m ({max(ys)-min(ys):.0f} m)")
