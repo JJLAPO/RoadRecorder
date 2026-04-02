@@ -31,7 +31,14 @@ struct ContentView: View {
                         .font(.caption)
                 }
 
-                if recorder.isRecording {
+                if recorder.isWarmingUp {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .foregroundColor(.blue)
+                        .font(.caption)
+                    Text("WARMUP")
+                        .font(.caption.bold())
+                        .foregroundColor(.blue)
+                } else if recorder.isRecording {
                     Circle()
                         .fill(.red)
                         .frame(width: 10, height: 10)
@@ -43,11 +50,16 @@ struct ContentView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
 
-            // Error banner
+            // Error / status banner
             if let error = recorder.locationManager.lastError {
                 ErrorBanner(message: error, color: .red)
             } else if let error = recorder.altimeterManager.lastError {
                 ErrorBanner(message: error, color: .orange)
+            } else if recorder.isWarmingUp {
+                ErrorBanner(
+                    message: "GPS warmup — precisione: \(formatAccuracy(recorder.locationManager.currentLocation?.horizontalAccuracy)) (serve < 5m)",
+                    color: .blue
+                )
             } else if recorder.locationManager.signalLost && recorder.isRecording {
                 ErrorBanner(message: "Segnale GPS perso — in attesa...", color: .orange)
             }

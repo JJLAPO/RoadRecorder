@@ -9,13 +9,18 @@ final class RecordingManager: ObservableObject {
 
     @Published var points: [RecordingPoint] = []
     @Published var isRecording = false
+    @Published var isWarmingUp = false
     @Published var totalDistance: Double = 0.0
     @Published var gpsGapCount: Int = 0
     @Published var droppedPoints: Int = 0
     @Published var exportError: String?
 
     private var lastLocation: CLLocation?
+    private var secondLastLocation: CLLocation?
     private var lastPointTime: Date?
+    private var interpolationTimer: Timer?
+
+    static let warmupAccuracy: Double = 5.0
 
     init() {
         locationManager.onLocationUpdate = { [weak self] location in
@@ -33,21 +38,26 @@ final class RecordingManager: ObservableObject {
         gpsGapCount = 0
         droppedPoints = 0
         lastLocation = nil
+        secondLastLocation = nil
         lastPointTime = nil
         exportError = nil
+        isWarmingUp = true
         isRecording = true
 
         altimeterManager.reset()
         altimeterManager.start()
         locationManager.startUpdating()
-        log.log(.info, "Recording STARTED")
+        log.log(.info, "Recording STARTED (warming up, waiting for accuracy < \(Self.warmupAccuracy)m)")
     }
 
     func stopRecording() {
         isRecording = false
+        isWarmingUp = false
+        stopInterpolationTimer()
         locationManager.stopUpdating()
         altimeterManager.stop()
-        log.log(.info, "Recording STOPPED — \(points.count) points, \(String(format: "%.0f", totalDistance))m, \(gpsGapCount) gaps, \(droppedPoints) dropped")
+        let interpCount = points.filter { $0.interpolated }.count
+        log.log(.info, "Recording STOPPED — \(points.count) points (\(interpCount) interpolated), \(String(format: "%.0f", totalDistance))m, \(gpsGapCount) gaps, \(droppedPoints) dropped")
     }
 
     func exportCSV() -> URL? {
@@ -85,6 +95,60 @@ final class RecordingManager: ObservableObject {
         return Logger.shared.logFileURL
     }
 
+    // MARK: - Interpolation timer
+
+    private func startInterpolationTimer() {
+        stopInterpolationTimer()
+        interpolationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.generateInterpolatedPoint()
+        }
+    }
+
+    private func stopInterpolationTimer() {
+        interpolationTimer?.invalidate()
+        interpolationTimer = nil
+    }
+
+    private func generateInterpolatedPoint() {
+        guard isRecording, !isWarmingUp else { return }
+        guard let loc1 = secondLastLocation, let loc2 = lastLocation else { return }
+
+        let dt = loc2.timestamp.timeIntervalSince(loc1.timestamp)
+        guard dt > 0.3 && dt < 3.0 else { return }
+
+        let now = Date()
+        let timeSinceLast = now.timeIntervalSince(loc2.timestamp)
+
+        // Only interpolate between 0.3s and 0.9s after last GPS fix
+        guard timeSinceLast > 0.3 && timeSinceLast < 0.9 else { return }
+
+        // Linear interpolation of position based on last two GPS fixes
+        let fraction = timeSinceLast / dt
+        let lat = loc2.coordinate.latitude + (loc2.coordinate.latitude - loc1.coordinate.latitude) * fraction
+        let lon = loc2.coordinate.longitude + (loc2.coordinate.longitude - loc1.coordinate.longitude) * fraction
+        let altGPS = loc2.altitude + (loc2.altitude - loc1.altitude) * fraction
+        let speed = max(loc2.speed, 0)
+        let course = loc2.course
+
+        let point = RecordingPoint(
+            timestamp: now.timeIntervalSince1970,
+            latitude: lat,
+            longitude: lon,
+            altitudeGPS: altGPS,
+            altitudeBaroRelative: altimeterManager.relativeAltitude,
+            pressure: altimeterManager.pressure,
+            speed: speed,
+            course: course,
+            horizontalAccuracy: max(loc2.horizontalAccuracy, loc1.horizontalAccuracy),
+            verticalAccuracy: max(loc2.verticalAccuracy, loc1.verticalAccuracy),
+            interpolated: true
+        )
+
+        points.append(point)
+    }
+
+    // MARK: - Handle GPS updates
+
     private func handleLocation(_ location: CLLocation) {
         guard isRecording else { return }
 
@@ -93,6 +157,18 @@ final class RecordingManager: ObservableObject {
             droppedPoints += 1
             log.log(.warn, "Dropped point: h_accuracy=\(String(format: "%.1f", location.horizontalAccuracy))m")
             return
+        }
+
+        // Warmup: wait for good accuracy before recording
+        if isWarmingUp {
+            if location.horizontalAccuracy <= Self.warmupAccuracy {
+                isWarmingUp = false
+                startInterpolationTimer()
+                log.log(.info, "Warmup complete: h_accuracy=\(String(format: "%.1f", location.horizontalAccuracy))m — recording started")
+            } else {
+                log.log(.info, "Warming up: h_accuracy=\(String(format: "%.1f", location.horizontalAccuracy))m (need < \(Self.warmupAccuracy)m)")
+                return
+            }
         }
 
         // Detect GPS gaps (> 3 seconds since last point)
@@ -104,7 +180,7 @@ final class RecordingManager: ObservableObject {
             }
         }
 
-        // Detect position jumps (> 50m in 1-2 seconds = likely GPS spike)
+        // Detect position jumps (> 50m/s = likely GPS spike)
         if let last = lastLocation {
             let dist = location.distance(from: last)
             let dt = location.timestamp.timeIntervalSince(last.timestamp)
@@ -116,6 +192,7 @@ final class RecordingManager: ObservableObject {
             totalDistance += dist
         }
 
+        secondLastLocation = lastLocation
         lastLocation = location
         lastPointTime = location.timestamp
 
@@ -129,7 +206,8 @@ final class RecordingManager: ObservableObject {
             speed: max(location.speed, 0),
             course: location.course,
             horizontalAccuracy: location.horizontalAccuracy,
-            verticalAccuracy: location.verticalAccuracy
+            verticalAccuracy: location.verticalAccuracy,
+            interpolated: false
         )
 
         points.append(point)
