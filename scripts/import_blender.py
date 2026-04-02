@@ -80,6 +80,25 @@ def create_nurbs_curve(points, name="RoadCurve"):
     return curve_obj, curve_data
 
 
+def create_road_profile(width=3.0, name="RoadProfile"):
+    """Crea un profilo piatto orizzontale (lungo X) da usare come Bevel Object."""
+    profile_data = bpy.data.curves.new(name=name, type="CURVE")
+    profile_data.dimensions = "2D"
+
+    spline = profile_data.splines.new("POLY")
+    spline.points.add(1)  # 2 punti totali
+
+    half = width / 2.0
+    # Punti lungo X = larghezza orizzontale della strada
+    spline.points[0].co = (-half, 0, 0, 1)
+    spline.points[1].co = (half, 0, 0, 1)
+
+    profile_obj = bpy.data.objects.new(name, profile_data)
+    bpy.context.collection.objects.link(profile_obj)
+
+    return profile_obj
+
+
 def setup_scene():
     """Configura la scena per scala reale."""
     # Imposta unita' a metri
@@ -131,9 +150,11 @@ def main():
 
     curve, curve_data = create_nurbs_curve(points)
 
-    # Superficie piatta: extrude crea un nastro largo road_width
+    # Profilo piatto orizzontale come bevel object
     road_width = 3.0  # metri — modifica per la tua strada
-    curve_data.extrude = road_width / 2.0  # extrude e' meta' larghezza per lato
+    profile = create_road_profile(width=road_width)
+    curve_data.bevel_object = profile
+    curve_data.use_fill_caps = True
 
     # Info utili
     xs = [p[0] for p in points]
