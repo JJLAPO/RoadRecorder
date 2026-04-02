@@ -23,8 +23,10 @@ final class RecordingManager: ObservableObject {
     static let warmupAccuracy: Double = 5.0
 
     init() {
-        locationManager.onLocationUpdate = { [weak self] location in
-            self?.handleLocation(location)
+        locationManager.onLocationUpdate = { [weak self] locations in
+            for location in locations {
+                self?.handleLocation(location)
+            }
         }
     }
 

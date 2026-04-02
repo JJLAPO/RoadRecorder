@@ -13,7 +13,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
     private var signalTimer: Timer?
 
-    var onLocationUpdate: ((CLLocation) -> Void)?
+    var onLocationUpdate: (([CLLocation]) -> Void)?
 
     override init() {
         super.init()
@@ -74,15 +74,18 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     // MARK: - CLLocationManagerDelegate
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
+        guard !locations.isEmpty else { return }
 
         if signalLost {
             log.log(.info, "GPS signal recovered")
         }
+        if locations.count > 1 {
+            log.log(.info, "GPS batch: \(locations.count) locations in one update")
+        }
         signalLost = false
         lastError = nil
-        currentLocation = location
-        onLocationUpdate?(location)
+        currentLocation = locations.last
+        onLocationUpdate?(locations)
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
