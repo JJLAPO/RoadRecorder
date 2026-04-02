@@ -37,7 +37,7 @@ def latlon_to_meters(lat, lon, ref_lat, ref_lon):
 
 
 def project_to_local(df):
-    """Aggiunge colonne x, y (metri) con origine al primo punto."""
+    """Aggiunge colonne x, y (metri) con origine al primo punto. Salva il riferimento."""
     ref_lat = df.iloc[0]["lat"]
     ref_lon = df.iloc[0]["lon"]
 
@@ -49,7 +49,7 @@ def project_to_local(df):
 
     df["x"] = xs
     df["y"] = ys
-    return df
+    return df, ref_lat, ref_lon
 
 
 # ── Filtering ───────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ def compute_cumulative_distance(df):
     return df
 
 
-def resample_by_distance(df, step_m=2.0):
+def resample_by_distance(df, ref_lat, ref_lon, step_m=2.0):
     """Ricampiona il percorso a distanza fissa (un punto ogni step_m metri)."""
     total_dist = df["distance"].values[-1]
     if total_dist < step_m:
@@ -154,9 +154,7 @@ def resample_by_distance(df, step_m=2.0):
 
     new_df = pd.DataFrame(result)
 
-    # Ricalcola lat/lon dai nuovi x, y per la mappa
-    ref_lat = df.iloc[0]["lat"]
-    ref_lon = df.iloc[0]["lon"]
+    # Ricalcola lat/lon dai nuovi x, y usando il riferimento ORIGINALE
     R = 6_371_000
     lat_rad = math.radians(ref_lat)
 
@@ -287,7 +285,7 @@ def main():
         print(f"  Rimossi {n} punti senza barometro")
 
     # 2. Proietta in coordinate locali (serve per spike detection)
-    df = project_to_local(df)
+    df, ref_lat, ref_lon = project_to_local(df)
 
     # 3. Filtra precisione
     df, n = filter_accuracy(df, args.max_accuracy)
@@ -328,7 +326,7 @@ def main():
     print(f"  Distanza totale: {total_dist:.0f}m")
 
     # 8. Ricampiona a distanza fissa
-    df_resampled = resample_by_distance(df, step_m=args.resample_step)
+    df_resampled = resample_by_distance(df, ref_lat, ref_lon, step_m=args.resample_step)
     stats["Passo ricampionamento"] = f"{args.resample_step} m"
     stats["Punti finali"] = len(df_resampled)
     print(f"  Ricampionato a {args.resample_step}m -> {len(df_resampled)} punti")
